@@ -69,8 +69,8 @@ class MediaManager extends Extension
         $disk = static::config('disk');
 
         $this->storage = Storage::disk($disk);
-
-        if (!$this->storage->getDriver()->getAdapter() instanceof Local) {
+        $this->diskConfig = config("filesystems.disks.$disk");
+        if (!isset($this->diskConfig['driver']) || $this->diskConfig['driver'] != 'local') {
             Handler::error('Error', '[laravel-admin-ext/media-manager] only works for local storage.');
         }
     }
@@ -103,12 +103,12 @@ class MediaManager extends Extension
      */
     protected function getFullPath($path)
     {
-        $fullPath = $this->storage->getDriver()->getAdapter()->applyPathPrefix($path);
-        if (strstr($fullPath, '..')) {
-            throw new \Exception('Incorrect path');
-        }
+      $fullPath = $this->diskConfig['root']. '/' . $path;
+      if (strstr($fullPath, '..')) {
+        throw new \Exception('Incorrect path');
+      }
 
-        return $fullPath;
+      return $fullPath;
     }
 
     public function download()
@@ -261,18 +261,29 @@ class MediaManager extends Extension
         return $navigation;
     }
 
+    /**
+     * Concatenate a path to a URL.
+     *
+     * @param  string  $url
+     * @param  string  $path
+     * @return string
+     */
+    protected function concatPathToUrl($url, $path)
+    {
+      return rtrim($url, '/').'/'.ltrim($path, '/');
+    }
+
     public function getFilePreview($file)
     {
         switch ($this->detectFileType($file)) {
-            case 'image':
-
-                if ($this->storage->getDriver()->getConfig()->has('url')) {
-                    $url = $this->storage->url($file);
-                    $preview = "<span class=\"file-icon has-img\"><img src=\"$url\" alt=\"Attachment\"></span>";
-                } else {
-                    $preview = '<span class="file-icon"><i class="fa fa-file-image-o"></i></span>';
-                }
-                break;
+          case 'image':
+              if (isset($this->diskConfig['url'])) {
+                  $url = $this->concatPathToUrl($this->diskConfig['url'], $file);
+                  $preview = "<span class=\"file-icon has-img\"><img src=\"$url\" alt=\"Attachment\"></span>";
+              } else {
+                  $preview = '<span class="file-icon"><i class="fa fa-file-image-o"></i></span>';
+              }
+              break;
 
             case 'pdf':
                 $preview = '<span class="file-icon"><i class="fa fa-file-pdf-o"></i></span>';
